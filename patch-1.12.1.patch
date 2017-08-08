@@ -1,0 +1,149 @@
+diff -ur nginx-1.12.1-old/src/stream/ngx_stream_upstream_hash_module.c nginx-1.12.1/src/stream/ngx_stream_upstream_hash_module.c
+--- nginx-1.12.1-old/src/stream/ngx_stream_upstream_hash_module.c	2017-07-11 21:24:11.000000000 +0800
++++ nginx-1.12.1/src/stream/ngx_stream_upstream_hash_module.c	2017-08-08 11:35:10.622323990 +0800
+@@ -9,6 +9,9 @@
+ #include <ngx_core.h>
+ #include <ngx_stream.h>
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++#include "ngx_stream_upstream_check_module.h"
++#endif
+ 
+ typedef struct {
+     uint32_t                              hash;
+@@ -233,6 +236,15 @@
+         if (peer->down) {
+             goto next;
+         }
++#if (NGX_STREAM_UPSTREAM_CHECK)
++	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, pc->log, 0,
++			"get hash peer, check_index: %ui",
++			peer->check_index);
++
++	if (ngx_stream_upstream_check_peer_down(peer->check_index)) {
++		goto next;
++	}
++#endif
+ 
+         if (peer->max_fails
+             && peer->fails >= peer->max_fails
+@@ -546,6 +558,16 @@
+                 continue;
+             }
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, pc->log, 0,
++			"get consistent_hash peer, check_index: %ui",
++			peer->check_index);
++
++	if (ngx_stream_upstream_check_peer_down(peer->check_index)) {
++		continue;
++	}
++#endif
++
+             if (peer->max_fails
+                 && peer->fails >= peer->max_fails
+                 && now - peer->checked <= peer->fail_timeout)
+Only in nginx-1.12.1/src/stream: ngx_stream_upstream_hash_module.c.orig
+diff -ur nginx-1.12.1-old/src/stream/ngx_stream_upstream_least_conn_module.c nginx-1.12.1/src/stream/ngx_stream_upstream_least_conn_module.c
+--- nginx-1.12.1-old/src/stream/ngx_stream_upstream_least_conn_module.c	2017-07-11 21:24:11.000000000 +0800
++++ nginx-1.12.1/src/stream/ngx_stream_upstream_least_conn_module.c	2017-08-08 11:35:10.622323990 +0800
+@@ -9,6 +9,9 @@
+ #include <ngx_core.h>
+ #include <ngx_stream.h>
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++#include "ngx_stream_upstream_check_module.h"
++#endif
+ 
+ static ngx_int_t ngx_stream_upstream_init_least_conn_peer(
+     ngx_stream_session_t *s, ngx_stream_upstream_srv_conf_t *us);
+@@ -143,6 +146,15 @@
+             continue;
+         }
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++	ngx_log_debug1(NGX_LOG_DEBUG_STREAM, pc->log, 0,
++			"get least_conn peer, check_index: %ui",
++			peer->check_index);
++
++	if (ngx_stream_upstream_check_peer_down(peer->check_index)) {
++		continue;
++	}
++#endif
+         if (peer->max_fails
+             && peer->fails >= peer->max_fails
+             && now - peer->checked <= peer->fail_timeout)
+Only in nginx-1.12.1/src/stream: ngx_stream_upstream_least_conn_module.c.orig
+diff -ur nginx-1.12.1-old/src/stream/ngx_stream_upstream_round_robin.c nginx-1.12.1/src/stream/ngx_stream_upstream_round_robin.c
+--- nginx-1.12.1-old/src/stream/ngx_stream_upstream_round_robin.c	2017-07-11 21:24:11.000000000 +0800
++++ nginx-1.12.1/src/stream/ngx_stream_upstream_round_robin.c	2017-08-08 11:35:10.622323990 +0800
+@@ -9,6 +9,9 @@
+ #include <ngx_core.h>
+ #include <ngx_stream.h>
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++#include "ngx_stream_upstream_check_module.h"
++#endif
+ 
+ #define ngx_stream_upstream_tries(p) ((p)->number                             \
+                                       + ((p)->next ? (p)->next->number : 0))
+@@ -101,9 +104,20 @@
+                 peer[n].max_conns = server[i].max_conns;
+                 peer[n].max_fails = server[i].max_fails;
+                 peer[n].fail_timeout = server[i].fail_timeout;
++#if (NGX_STREAM_UPSTREAM_CHECK)
++		peer[n].check_index = (ngx_uint_t) NGX_ERROR;
++#endif
+                 peer[n].down = server[i].down;
+                 peer[n].server = server[i].name;
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++		if (!server[i].down) {
++			peer[n].check_index =
++				ngx_stream_upstream_check_add_peer(cf, us, &server[i].addrs[j]);
++		} else {
++			peer[n].check_index = (ngx_uint_t) NGX_ERROR;
++		}
++#endif
+                 *peerp = &peer[n];
+                 peerp = &peer[n].next;
+                 n++;
+@@ -451,6 +465,11 @@
+         if (peer->max_conns && peer->conns >= peer->max_conns) {
+             goto failed;
+         }
++#if (NGX_STREAM_UPSTREAM_CHECK)
++	if (ngx_stream_upstream_check_peer_down(peer->check_index)) {
++		goto failed;
++	}
++#endif
+ 
+         rrp->current = peer;
+ 
+@@ -546,6 +565,11 @@
+             continue;
+         }
+ 
++#if (NGX_STREAM_UPSTREAM_CHECK)
++	if (ngx_stream_upstream_check_peer_down(peer->check_index)) {
++		continue;
++	}
++#endif
+         if (peer->max_fails
+             && peer->fails >= peer->max_fails
+             && now - peer->checked <= peer->fail_timeout)
+Only in nginx-1.12.1/src/stream: ngx_stream_upstream_round_robin.c.orig
+diff -ur nginx-1.12.1-old/src/stream/ngx_stream_upstream_round_robin.h nginx-1.12.1/src/stream/ngx_stream_upstream_round_robin.h
+--- nginx-1.12.1-old/src/stream/ngx_stream_upstream_round_robin.h	2017-07-11 21:24:11.000000000 +0800
++++ nginx-1.12.1/src/stream/ngx_stream_upstream_round_robin.h	2017-08-08 11:36:28.398326917 +0800
+@@ -34,6 +34,7 @@
+     time_t                           checked;
+ 
+     ngx_uint_t                       max_fails;
++    ngx_uint_t						  check_index;
+     time_t                           fail_timeout;
+     ngx_msec_t                       slow_start;
+     ngx_msec_t                       start_time;
+Only in nginx-1.12.1/src/stream: ngx_stream_upstream_round_robin.h.orig
+Only in nginx-1.12.1/src/stream: ngx_stream_upstream_round_robin.h.rej
