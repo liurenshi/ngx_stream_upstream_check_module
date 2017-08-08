@@ -2713,7 +2713,7 @@ ngx_stream_upstream_check_status_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    uclcf = ngx_http_get_module_loc_conf(r, ngx_stream_upstream_check_module);
+    uclcf = ngx_http_get_module_loc_conf(r, ngx_stream_upstream_check_status_module);
 
     ctx = ngx_pcalloc(r->pool, sizeof(ngx_stream_upstream_check_status_ctx_t));
     if (ctx == NULL) {
@@ -3425,7 +3425,7 @@ ngx_stream_upstream_check_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (cf->args->nelts == 2) {
         uclcf = ngx_http_conf_get_module_loc_conf(cf,
-                                              ngx_stream_upstream_check_module);
+                                              ngx_stream_upstream_check_status_module);
 
         uclcf->format = ngx_http_get_check_status_format_conf(&value[1]);
         if (uclcf->format == NULL) {
