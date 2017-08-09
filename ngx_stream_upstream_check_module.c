@@ -572,7 +572,7 @@ ngx_module_t  ngx_stream_upstream_check_status_module = {
     NGX_HTTP_MODULE,                       /* module type */
     NULL,                                  /* init master */
     NULL,                                  /* init module */
-    ngx_stream_upstream_check_init_process,  /* init process */
+    NULL,  								   /* init process */
     NULL,                                  /* init thread */
     NULL,                                  /* exit thread */
     NULL,                                  /* exit process */
@@ -965,6 +965,7 @@ ngx_stream_upstream_check_free_peer(ngx_uint_t index)
     ngx_shmtx_unlock(&peer[index].shm->mutex);
 }
 
+int need_print;
 
 static ngx_int_t
 ngx_stream_upstream_check_add_timers(ngx_cycle_t *cycle)
@@ -989,6 +990,12 @@ ngx_stream_upstream_check_add_timers(ngx_cycle_t *cycle)
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, cycle->log, 0,
+                   "stream check upstream init_process, shm_name: %V, "
+                   "peer number: %ud",
+                   &peers->check_shm_name,
+                   peers->peers.nelts);
+
+    ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                    "stream check upstream init_process, shm_name: %V, "
                    "peer number: %ud",
                    &peers->check_shm_name,
@@ -1037,6 +1044,8 @@ ngx_stream_upstream_check_add_timers(ngx_cycle_t *cycle)
         delay = ucscf->check_interval > 1000 ? ucscf->check_interval : 1000;
         t = ngx_random() % delay;
 
+        need_print = 1;
+        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0, "add timer %d", i);
         ngx_add_timer(&peer[i].check_ev, t);
     }
 
